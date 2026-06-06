@@ -787,7 +787,19 @@ void Application::frame()
 
     if (currentFocus && Application::getInputType() != InputType::TOUCH)
     {
-        currentFocus->frameHighlight(&frameContext);
+        // Only draw the focus highlight when the focused view belongs to the top
+        // (visible) activity. When an activity is pushed whose focusable content
+        // is built asynchronously, focus can't move into it yet (giveFocus is a
+        // no-op when the target has no focusable descendant) and stays on the
+        // view behind. Without this guard that stale highlight is drawn floating
+        // over the new screen — the "selection border bleeds onto the next
+        // screen" bug. (thomaz: global fix)
+        Activity* topActivity = Application::activitiesStack.empty()
+            ? nullptr
+            : Application::activitiesStack.back();
+        Activity* focusActivity = currentFocus->getParentActivity();
+        if (!topActivity || focusActivity == nullptr || focusActivity == topActivity)
+            currentFocus->frameHighlight(&frameContext);
     }
 
     // Notifications
