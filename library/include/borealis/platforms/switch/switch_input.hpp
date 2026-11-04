@@ -20,6 +20,7 @@
 #include <switch.h>
 #include <unordered_map>
 
+#include <mutex>
 #include <stop_token>
 #include <thread>
 #include <borealis/core/input.hpp>
@@ -96,6 +97,9 @@ class SwitchInputManager : public InputManager
     int cursorTexture = 0;
     NVGpaint paint;
     Point lastCursorPosition;
+    // Guards the PadState structs: the app may poll controllers from a
+    // dedicated input thread while the UI thread also reads them.
+    std::recursive_mutex padMutex;
     PadState padStateHandheld;
     HidVibrationDeviceHandle m_vibration_device_handheld[2];
     HidVibrationValue m_vibration_values_handheld[2];

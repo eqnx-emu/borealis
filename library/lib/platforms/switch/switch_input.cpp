@@ -169,6 +169,7 @@ void SwitchInputManager::clearVibration(int controller)
 
 void SwitchInputManager::updateUnifiedControllerState(ControllerState* state)
 {
+    std::lock_guard<std::recursive_mutex> padLock(padMutex);
     for (size_t i         = 0; i < _BUTTON_MAX; i++)
         state->buttons[i] = false;
 
@@ -213,6 +214,7 @@ void SwitchInputManager::updateUnifiedControllerState(ControllerState* state)
 
 short SwitchInputManager::getControllersConnectedCount()
 {
+    std::lock_guard<std::recursive_mutex> padLock(padMutex);
     padUpdate(&this->padStateHandheld);
     int extra       = padStateHandheld.active_handheld ? 1 : 0;
     int controllers = extra;
@@ -228,6 +230,7 @@ short SwitchInputManager::getControllersConnectedCount()
 
 void SwitchInputManager::updateControllerState(ControllerState* state, int controller)
 {
+    std::lock_guard<std::recursive_mutex> padLock(padMutex);
     padUpdate(&this->padStateHandheld);
     if (controller == 0 && padStateHandheld.active_handheld)
     {
@@ -358,6 +361,7 @@ void SwitchInputManager::sendRumbleInternal(HidVibrationDeviceHandle vibration_d
 
 void SwitchInputManager::sendRumble(unsigned short controller, unsigned short lowFreqMotor, unsigned short highFreqMotor)
 {
+    std::lock_guard<std::recursive_mutex> padLock(padMutex);
     padUpdate(&this->padStateHandheld);
     if (controller == 0 && padStateHandheld.active_handheld)
     {
@@ -371,6 +375,7 @@ void SwitchInputManager::sendRumble(unsigned short controller, unsigned short lo
 
 void SwitchInputManager::sendRumble(unsigned short controller, unsigned short lowFreqMotor, unsigned short highFreqMotor, unsigned short leftTriggerFreqMotor, unsigned short rightTriggerFreqMotor)
 {
+    std::lock_guard<std::recursive_mutex> padLock(padMutex);
     padUpdate(&this->padStateHandheld);
     if (controller == 0 && padStateHandheld.active_handheld)
     {
@@ -460,6 +465,7 @@ void SwitchInputManager::handleKeyboard()
 
 void SwitchInputManager::handleControllerSensors()
 {
+    std::lock_guard<std::recursive_mutex> padLock(padMutex);
     HidSixAxisSensorState sixaxis = { 0 };
 
     uint64_t style_set = padGetStyleSet(&padsState[0]);

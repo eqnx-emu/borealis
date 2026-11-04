@@ -31,7 +31,9 @@ typedef Event _LibNXEvent; // "Event" alone clashes with brls::Event
 namespace brls
 {
 
-static constexpr const unsigned FRAMEBUFFERS_COUNT = 3;
+// Double buffering: with FIFO presentation a third buffer lets a finished
+// frame wait an extra refresh before scan-out, adding up to ~16 ms of latency.
+static constexpr const unsigned FRAMEBUFFERS_COUNT = 2;
 
 // deko3d video context
 class SwitchVideoContext : public VideoContext
