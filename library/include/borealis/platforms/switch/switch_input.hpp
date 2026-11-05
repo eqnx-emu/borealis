@@ -20,6 +20,7 @@
 #include <switch.h>
 #include <unordered_map>
 
+#include <atomic>
 #include <mutex>
 #include <stop_token>
 #include <thread>
@@ -66,6 +67,15 @@ class SwitchInputManager : public InputManager
     void clearVibration(int controller);
 
     /*
+    * Read the motion sensors now and fire the sensor events if there is a new
+    * sample. An app polling input on its own thread can call this there, at a
+    * higher rate than the UI frame rate, after setSensorPollingExternal(true)
+    * turns off the per-frame read in runloopStart().
+    */
+    void pollControllerSensors() { handleControllerSensors(); }
+    void setSensorPollingExternal(bool external) { m_sensorPollingExternal = external; }
+
+    /*
     * It will not report about screenshot button state, if screenshotButtonOverrideMode equals NONE
     */
     bool isScreenshotButtonPressed() { return m_isScreenshotPressed; }
@@ -110,6 +120,8 @@ class SwitchInputManager : public InputManager
     bool pointerLocked = false;
     HidMouseState currentMouseState;
     HidSixAxisSensorHandle m_six_axis_sensor_handle[4]; // All for player 1, player 2 not supported
+    std::atomic<bool> m_sensorPollingExternal { false };
+    uint64_t m_lastSixAxisSample = UINT64_MAX;
 
     std::vector<bool> m_hid_keyboard_state;
     std::unordered_map<int, BrlsKeyboardScancode> m_hid_brls_map;

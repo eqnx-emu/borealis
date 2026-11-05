@@ -406,7 +406,8 @@ void SwitchInputManager::runloopStart()
     upToDateMouseState();
     handleMouse();
     handleKeyboard();
-    handleControllerSensors();
+    if (!m_sensorPollingExternal)
+        handleControllerSensors();
 }
 
 void SwitchInputManager::upToDateMouseState()
@@ -482,6 +483,11 @@ void SwitchInputManager::handleControllerSensors()
         else if (attrib & HidNpadAttribute_IsRightConnected)
             hidGetSixAxisSensorStates(this->m_six_axis_sensor_handle[3], &sixaxis, 1);
     }
+
+    // HID samples motion every ~5 ms; don't resend a sample already sent.
+    if (sixaxis.sampling_number == m_lastSixAxisSample)
+        return;
+    m_lastSixAxisSample = sixaxis.sampling_number;
 
     auto accelState = SensorEvent{
         0,
