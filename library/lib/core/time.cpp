@@ -24,10 +24,33 @@ void Ticking::updateTickings()
     // Update time
     static Time previousTime = 0;
 
-    Time currentTime = getCPUTimeUsec() / 1000;
-    Time delta       = previousTime == 0 ? 0 : currentTime - previousTime;
+    Time currentTime = getCPUTimeUsec();
+    Time elapsed     = previousTime == 0 ? 0 : currentTime - previousTime;
 
     previousTime = currentTime;
+
+#ifdef __SWITCH__
+    // Every loop iteration presents one image on a 60 Hz screen, so step the
+    // animations by whole refresh periods. The measured time jitters around
+    // the vsync (acquire returns early or late), and stepping by it moves the
+    // animations unevenly between the frames that are actually shown.
+    // The rounding error is carried over, so the average speed stays right.
+    static Time pending = 0;
+    static Time carry   = 0;
+    const Time period   = 16667;
+    pending += elapsed;
+    Time frames = (pending + period / 2) / period;
+    if (frames < 1 && elapsed > 0)
+        frames = 1;
+    pending -= frames * period;
+    if (pending < -period)
+        pending = -period;
+    carry += frames * period;
+    Time delta = carry / 1000;
+    carry -= delta * 1000;
+#else
+    Time delta = elapsed / 1000;
+#endif
 
     // Update every running ticking, kill them and execute cb if they are finished
     // We have to clone the running tickings list to avoid altering it while
