@@ -109,6 +109,7 @@ namespace nvg {
         m_view_width(view_width), m_view_height(view_height), m_device(device), m_queue(queue), m_image_mem_pool(image_mem_pool), m_code_mem_pool(code_mem_pool), m_data_mem_pool(data_mem_pool), m_image_descriptor_owners{}, m_image_descriptor_images{}
     {
         printf("DkRenderer create\n");
+        m_upload_queue = dk::QueueMaker{m_device}.setFlags(DkQueueFlags_Graphics | DkQueueFlags_HighPrio).create();
         /* Create a dynamic command buffer and allocate memory for it. */
         m_dyn_cmd_buf = dk::CmdBufMaker{m_device}.create();
         m_dyn_cmd_mem.allocate(m_data_mem_pool, DynamicCmdSize);
@@ -483,7 +484,8 @@ namespace nvg {
     int DkRenderer::CreateTexture(const DKNVGcontext &ctx, int type, int w, int h, int image_flags, const unsigned char* data) {
         const auto texture_id = m_next_texture_id++;
         auto texture = std::make_shared<Texture>(texture_id);
-        texture->Initialize(m_image_mem_pool, m_data_mem_pool, m_device, m_queue, type, w, h, image_flags, data);
+        texture->Initialize(m_image_mem_pool, m_data_mem_pool, m_device, m_upload_queue, type, w, h, image_flags, data);
+        m_images_dirty = true;
         m_textures.push_back(texture);
         return texture->GetId();
     }
@@ -523,7 +525,8 @@ namespace nvg {
         x = 0;
         w = tex_desc.width;
 
-        UpdateImage(texture->GetImage(), m_data_mem_pool, m_device, m_queue, tex_desc.type, x, y, w, h, data);
+        UpdateImage(texture->GetImage(), m_data_mem_pool, m_device, m_upload_queue, tex_desc.type, x, y, w, h, data);
+        m_images_dirty = true;
         return 1;
     }
 
@@ -560,6 +563,12 @@ namespace nvg {
         if (ctx.ncalls > 0) {
             /* Prepare dynamic command buffer. */
             m_dyn_cmd_mem.begin(m_dyn_cmd_buf);
+
+            /* Texels written by the upload queue must not come from a stale texture cache. */
+            if (m_images_dirty) {
+                m_dyn_cmd_buf.barrier(DkBarrier_None, DkInvalidateFlags_Image);
+                m_images_dirty = false;
+            }
 
             /* Update buffers with data. */
             this->UpdateVertexBuffer(ctx.verts, ctx.nverts * sizeof(NVGvertex));

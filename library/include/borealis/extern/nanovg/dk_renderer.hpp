@@ -169,6 +169,11 @@ namespace nvg {
             CMemPool &m_code_mem_pool;
             CMemPool &m_data_mem_pool;
 
+            /* Texture uploads run on their own queue: waiting on the frame
+               queue would also wait for the frame being shown, a full vsync. */
+            dk::UniqueQueue m_upload_queue;
+            bool m_images_dirty = false;
+
             /* State. */
             dk::UniqueCmdBuf m_dyn_cmd_buf;
             CCmdMemRing<1> m_dyn_cmd_mem;
