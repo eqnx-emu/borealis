@@ -640,6 +640,12 @@ int nvgTextBreakLines(NVGcontext* ctx, const char* string, const char* end, floa
 
 void nvgFontQuality(NVGcontext* ctx, float quality);
 
+// Rasterizes text at a few sizes only, steps of (1 + step) around the scale
+// current at this call, until nvgRestore(). For text that scales during an
+// animation: without it every 1% of scale is a new set of glyphs in the atlas.
+// Inside an already snapping state it keeps the outer reference. 0 turns it off.
+void nvgTextScaleSnap(NVGcontext* ctx, float step);
+
 // Work like nvgFill, but only supports drawing image with alpha channels.
 // The image is used to create a stencil buffer, which will be used for subsequent drawing operations,
 // and only the content corresponding to the non-transparent part of the stencil buffer will be displayed.

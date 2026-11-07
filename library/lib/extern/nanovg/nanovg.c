@@ -105,6 +105,8 @@ struct NVGstate {
 	float fontBlur;
 	float fontDilate;
 	float fontQuality;
+	float textSnapStep;
+	float textSnapRef;
 	int textAlign;
 	int fontId;
 };
@@ -695,6 +697,8 @@ void nvgReset(NVGcontext* ctx)
 	state->fontBlur = 0.0f;
 	state->fontDilate = 0.0f;
 	state->fontQuality = 1.0f;
+	state->textSnapStep = 0.0f;
+	state->textSnapRef = 1.0f;
 	state->textAlign = NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE;
 	state->fontId = 0;
 }
@@ -2427,7 +2431,16 @@ static float nvg__quantize(float a, float d)
 
 static float nvg__getFontScale(NVGstate* state)
 {
-	return nvg__minf(nvg__quantize(nvg__getAverageScale(state->xform), 0.01f), 4.0f);
+	float scale = nvg__getAverageScale(state->xform);
+	// While snapping, glyphs are rasterized at a few sizes only (steps of
+	// textSnapStep around textSnapRef) instead of a new size every 1%, so
+	// text that grows or shrinks over an animation reuses the atlas.
+	if (state->textSnapStep > 0.0f && state->textSnapRef > 0.0f && scale > 0.0f) {
+		float step = logf(1.0f + state->textSnapStep);
+		float k = floorf(logf(scale / state->textSnapRef) / step + 0.5f);
+		scale = state->textSnapRef * expf(k * step);
+	}
+	return nvg__minf(nvg__quantize(scale, 0.01f), 4.0f);
 }
 
 static void nvg__flushTextTexture(NVGcontext* ctx)
@@ -3168,5 +3181,20 @@ void nvgFontQuality(NVGcontext* ctx, float quality)
 {
     NVGstate* state = nvg__getState(ctx);
     state->fontQuality = quality;
+}
+
+void nvgTextScaleSnap(NVGcontext* ctx, float step)
+{
+    NVGstate* state = nvg__getState(ctx);
+    if (step <= 0.0f) {
+        state->textSnapStep = 0.0f;
+        return;
+    }
+    // Nested snapping keeps the outer reference, so the sizes stay put
+    // while an enclosing view scales too.
+    if (state->textSnapStep > 0.0f)
+        return;
+    state->textSnapStep = step;
+    state->textSnapRef = nvg__getAverageScale(state->xform);
 }
 // vim: ft=c nu noet ts=4
