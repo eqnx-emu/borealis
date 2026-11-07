@@ -73,6 +73,8 @@ class Hints : public Box
     bool forceShown             = false;
 
     VoidEvent::Subscription hintSubscription;
+    VoidEvent::Subscription runLoopSubscription;
+    bool refillPending = false;
 };
 
 } // namespace brls

@@ -128,8 +128,18 @@ Hints::Hints()
     setAxis(Axis::ROW);
     setDirection(Direction::LEFT_TO_RIGHT);
 
+    // Building a screen can ask for new hints many times in one frame
+    // (each setActionAvailable does); rebuild them once, after the frame.
     hintSubscription = Application::getGlobalHintsUpdateEvent()->subscribe([this]()
     {
+        refillPending = true;
+    });
+
+    runLoopSubscription = Application::getRunLoopEvent()->subscribe([this]()
+    {
+        if (!refillPending)
+            return;
+        refillPending = false;
         if (!AppletFrame::HIDE_BOTTOM_BAR || forceShown)
         {
             refillHints(Application::getCurrentFocus());
@@ -155,6 +165,7 @@ Hints::Hints()
 Hints::~Hints()
 {
     Application::getGlobalHintsUpdateEvent()->unsubscribe(hintSubscription);
+    Application::getRunLoopEvent()->unsubscribe(runLoopSubscription);
 }
 
 static int buttonToSortableVal(ControllerButton button)
