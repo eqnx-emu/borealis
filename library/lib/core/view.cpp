@@ -1216,8 +1216,44 @@ void View::invalidate()
 
     if (this->hasParent() && !this->detached)
         this->getParent()->invalidate();
-    else
-        YGNodeCalculateLayout(this->ygNode, YGUndefined, YGUndefined, YGDirectionLTR);
+    else if (std::find(pendingLayoutRoots.begin(), pendingLayoutRoots.end(), this) == pendingLayoutRoots.end())
+        pendingLayoutRoots.push_back(this);
+}
+
+void View::flushLayout()
+{
+    // A layout pass can read positions (onLayout) and land here again.
+    if (flushingLayoutRoots)
+        return;
+
+    // onLayout may ask for another pass; give up after a few so a view
+    // that always asks cannot hang the frame (the rest waits a frame).
+    for (int pass = 0; pass < 8 && !pendingLayoutRoots.empty(); pass++)
+    {
+        std::vector<View*> roots;
+        std::vector<View*> done;
+        roots.swap(pendingLayoutRoots);
+        flushingLayoutRoots = &roots;
+
+        for (View* view : roots)
+        {
+            // Null when deleted during this pass
+            if (!view)
+                continue;
+
+            // A view attached since it asked is laid out with its new tree
+            while (view->hasParent() && !view->detached)
+                view = view->getParent();
+
+            if (std::find(done.begin(), done.end(), view) != done.end())
+                continue;
+            done.push_back(view);
+
+            YGNodeCalculateLayout(view->ygNode, YGUndefined, YGUndefined, YGDirectionLTR);
+        }
+
+        flushingLayoutRoots = nullptr;
+    }
 }
 
 Rect View::getFrame()
@@ -1227,6 +1263,7 @@ Rect View::getFrame()
 
 float View::getX()
 {
+    flushLayout();
     if (this->hasParent())
         return this->getParent()->getX() + YGNodeLayoutGetLeft(this->ygNode) + this->translation.x + (isDetached() ? this->detachedOrigin.x : 0);
     return YGNodeLayoutGetLeft(this->ygNode) + this->translation.x;
@@ -1234,6 +1271,7 @@ float View::getX()
 
 float View::getY()
 {
+    flushLayout();
     if (this->hasParent())
         return this->getParent()->getY() + YGNodeLayoutGetTop(this->ygNode) + this->translation.y + (isDetached() ? this->detachedOrigin.y : 0);
     return YGNodeLayoutGetTop(this->ygNode) + this->translation.y;
@@ -1246,21 +1284,25 @@ Rect View::getLocalFrame()
 
 float View::getLocalX()
 {
+    flushLayout();
     return YGNodeLayoutGetLeft(this->ygNode) + this->translation.x + (isDetached() ? this->detachedOrigin.x : 0);
 }
 
 float View::getLocalY()
 {
+    flushLayout();
     return YGNodeLayoutGetTop(this->ygNode) + this->translation.y + (isDetached() ? this->detachedOrigin.y : 0);
 }
 
 float View::getHeight(bool includeCollapse)
 {
+    flushLayout();
     return YGNodeLayoutGetHeight(this->ygNode) * (includeCollapse ? this->collapseState.getValue() : 1.0f);
 }
 
 float View::getWidth()
 {
+    flushLayout();
     return YGNodeLayoutGetWidth(this->ygNode);
 }
 
@@ -1540,6 +1582,10 @@ View::~View()
     clickAlpha.stop();
     highlightAlpha.stop();
     collapseState.stop();
+
+    pendingLayoutRoots.erase(std::remove(pendingLayoutRoots.begin(), pendingLayoutRoots.end(), this), pendingLayoutRoots.end());
+    if (flushingLayoutRoots)
+        std::replace(flushingLayoutRoots->begin(), flushingLayoutRoots->end(), this, (View*)nullptr);
 
     YGNodeFree(this->ygNode);
 

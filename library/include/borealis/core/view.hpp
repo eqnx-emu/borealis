@@ -268,6 +268,10 @@ class View
     bool hideClickAnimation      = false;
 
     bool detached = false;
+
+    // Tree roots waiting for a layout pass, see invalidate().
+    inline static std::vector<View*> pendingLayoutRoots;
+    inline static std::vector<View*>* flushingLayoutRoots = nullptr;
     Point detachedOrigin;
 
     Point translation;
@@ -409,8 +413,16 @@ class View
     *
     * Only methods that change yoga nodes properties should
     * call this method.
+    *
+    * The layout pass itself is deferred: it runs before the next frame,
+    * or as soon as a position or size is read, whichever comes first.
     */
     virtual void invalidate();
+
+    /**
+     * Runs the layout passes requested by invalidate() since the last one.
+     */
+    static void flushLayout();
 
     /**
      * Called when a layout pass ends on that view.

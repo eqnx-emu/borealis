@@ -212,6 +212,9 @@ bool Application::internalMainLoop()
 
     Application::processUrlOpenQueue();
 
+    // Layout passes requested since the last frame
+    View::flushLayout();
+
     // Mouse and touch
     Application::processInput();
 
@@ -222,6 +225,7 @@ bool Application::internalMainLoop()
     Ticking::updateTickings();
 
     // Render
+    View::flushLayout();
     Application::frame();
 
     // Run sync functions
