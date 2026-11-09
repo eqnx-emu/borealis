@@ -349,18 +349,26 @@ void Label::setText(const std::string& text)
     static bool trans = Application::getLocale() == LOCALE_ZH_HANT || Application::getLocale() == LOCALE_ZH_TW;
     if (trans && OPENCC_ON)
     {
-        this->truncatedText = Label::STConverter(text);
-        this->fullText      = this->truncatedText;
+        std::string converted = Label::STConverter(text);
+        if (converted == this->fullText)
+            return;
+        this->truncatedText = converted;
+        this->fullText      = std::move(converted);
         this->stringLength  = strLen(this->fullText);
     }
     else
     {
+        if (text == this->fullText)
+            return;
         this->truncatedText = text;
         this->fullText      = text;
         this->stringLength  = strLen(this->fullText);
     }
     this->invalidate();
 #else
+    // The same text needs no new layout; callers often set it again.
+    if (text == this->fullText)
+        return;
     this->truncatedText = text;
     this->fullText      = text;
     this->stringLength  = strLen(text);

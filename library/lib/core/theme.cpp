@@ -152,10 +152,12 @@ void ThemeValues::addColor(const std::string& name, NVGcolor color)
 
 NVGcolor ThemeValues::getColor(const std::string& name)
 {
-    if (this->values.count(name) == 0)
+    // One lookup: views ask for colours while drawing, every frame.
+    auto it = this->values.find(name);
+    if (it == this->values.end())
         fatal("Unknown theme value \"" + name + "\" in size: " + std::to_string(this->values.size()));
 
-    return this->values[name];
+    return it->second;
 }
 
 Theme::Theme(ThemeValues* values)
