@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <algorithm>
 #include <switch.h>
 
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES /* Enforces GLSL std140/std430 alignment rules for glm types. */
@@ -111,7 +112,7 @@ namespace nvg {
         printf("DkRenderer create\n");
         m_upload_queue = dk::QueueMaker{m_device}.setFlags(DkQueueFlags_Graphics | DkQueueFlags_HighPrio).create();
         /* Create a dynamic command buffer and allocate memory for it. */
-        m_dyn_cmd_buf = dk::CmdBufMaker{m_device}.create();
+        m_dyn_cmd_buf = dk::CmdBufMaker{m_device}.setUserData(this).setCbAddMem(AddDynCmdMem).create();
         m_dyn_cmd_mem.allocate(m_data_mem_pool, DynamicCmdSize);
 
         m_image_descriptor_set.allocate(m_data_mem_pool);
@@ -159,7 +160,29 @@ namespace nvg {
 
         m_view_uniform_buffer.destroy();
         m_frag_uniform_buffer.destroy();
+        for (CMemPool::Handle &mem : m_dyn_extra_mem)
+            mem.destroy();
         m_textures.clear();
+    }
+
+    // deko3d calls this when the command memory runs out mid-frame; without it,
+    // a busy frame aborts the app (dkCmdBuf out of memory, svcBreak).
+    void DkRenderer::AddDynCmdMem(void *user_data, DkCmdBuf cmdbuf, size_t min_size) {
+        auto *self = static_cast<DkRenderer *>(user_data);
+        while (self->m_dyn_extra_used < self->m_dyn_extra_mem.size()) {
+            CMemPool::Handle &mem = self->m_dyn_extra_mem[self->m_dyn_extra_used++];
+            if (mem.getSize() >= min_size) {
+                dkCmdBufAddMemory(cmdbuf, mem.getMemBlock(), mem.getOffset(), mem.getSize());
+                return;
+            }
+        }
+        const size_t size = (std::max(DynamicCmdSize, min_size) + DK_CMDMEM_ALIGNMENT - 1) & ~(size_t)(DK_CMDMEM_ALIGNMENT - 1);
+        CMemPool::Handle mem = self->m_data_mem_pool.allocate(size, DK_CMDMEM_ALIGNMENT);
+        if (!mem)
+            return; // deko3d reports the shortage itself
+        self->m_dyn_extra_mem.push_back(mem);
+        self->m_dyn_extra_used = self->m_dyn_extra_mem.size();
+        dkCmdBufAddMemory(cmdbuf, mem.getMemBlock(), mem.getOffset(), mem.getSize());
     }
 
     int DkRenderer::FindFreeImageDescriptor() const {
@@ -563,6 +586,8 @@ namespace nvg {
         if (ctx.ncalls > 0) {
             /* Prepare dynamic command buffer. */
             m_dyn_cmd_mem.begin(m_dyn_cmd_buf);
+            /* begin() waited for the last frame, so its extra chunks are free again. */
+            m_dyn_extra_used = 0;
 
             /* Texels written by the upload queue must not come from a stale texture cache. */
             if (m_images_dirty) {
