@@ -177,6 +177,10 @@ namespace nvg {
             /* State. */
             dk::UniqueCmdBuf m_dyn_cmd_buf;
             CCmdMemRing<1> m_dyn_cmd_mem;
+            /* A frame with more draw calls than DynamicCmdSize holds goes on in these
+               chunks instead of aborting. They are reused once the frame is done. */
+            std::vector<CMemPool::Handle> m_dyn_extra_mem;
+            size_t m_dyn_extra_used = 0;
             std::optional<CMemPool::Handle> m_vertex_buffer;
             CShader m_vertex_shader;
             CShader m_fragment_shader;
@@ -196,6 +200,7 @@ namespace nvg {
             int FindFreeImageDescriptor() const;
             void TrimImageDescriptorTail();
             void SetUniforms(const DKNVGcontext &ctx, int offset, int image);
+            static void AddDynCmdMem(void *user_data, DkCmdBuf cmdbuf, size_t min_size);
 
             void UpdateVertexBuffer(const void *data, size_t size);
 
